@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en-ZA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sbonelo Mthethwa — South African Payslip Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#1c211f;
+    --ink-soft:#5b625e;
+    --bg:#f4f3ef;
+    --panel:#ffffff;
+    --line:#e2e1da;
+    --accent:#0f6b53;
+    --accent-soft:#e4f1ec;
+    --gold:#b08a3e;
+    --danger:#a4243b;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(28,33,31,.06), 0 8px 24px -12px rgba(28,33,31,.15);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.brand{font-family:'Space Grotesk',sans-serif;}
+  .num{font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums;}
+
+  /* ---------- App shell ---------- */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 28px;border-bottom:1px solid var(--line);
+    background:var(--panel);position:sticky;top:0;z-index:50;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;}
+  .brand .mark{
+    width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#0a4a3a);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;
+  }
+  .brand .tag{font-family:'Inter';font-weight:500;font-size:12.5px;color:var(--ink-soft);margin-left:6px;padding-left:10px;border-left:1px solid var(--line);}
+  .topbar-note{font-size:12.5px;color:var(--ink-soft);max-width:340px;text-align:right;line-height:1.4;}
+
+  .layout{
+    display:grid;
+    grid-template-columns: 380px 1fr;
+    gap:0;
+    min-height:calc(100vh - 68px);
+  }
+  @media (max-width: 980px){ .layout{grid-template-columns:1fr;} }
+
+  /* ---------- Control panel ---------- */
+  .panel{
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    padding:22px 22px 60px;
+    overflow-y:auto;
+  }
+  .panel h2{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin:26px 0 12px;font-weight:600;}
+  .panel h2:first-child{margin-top:0;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+  .field input[type=text], .field input[type=number], .field select, .field input[type=date]{
+    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;
+    font-family:'Inter';font-size:13.5px;background:#fff;color:var(--ink);
+  }
+  .field input:focus, .field select:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent);}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+  .mode-toggle{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px;}
+  .mode-toggle button{
+    flex:1;padding:9px 6px;border:none;background:#fff;font-family:'Inter';font-weight:600;font-size:12.5px;
+    color:var(--ink-soft);cursor:pointer;
+  }
+  .mode-toggle button.active{background:var(--accent);color:#fff;}
+
+  .checkline{display:flex;align-items:center;gap:8px;margin:10px 0;}
+  .checkline input{width:16px;height:16px;}
+  .checkline label{font-size:13px;font-weight:600;color:var(--ink);}
+
+  .dynrow{display:grid;grid-template-columns:1fr 100px 28px;gap:6px;margin-bottom:6px;align-items:center;}
+  .dynrow input{padding:7px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;}
+  .dynrow button{background:none;border:none;color:var(--danger);font-size:16px;cursor:pointer;line-height:1;}
+  .addbtn{
+    background:var(--accent-soft);color:var(--accent);border:1px dashed #b7d9cc;border-radius:7px;
+    padding:7px 10px;font-size:12.5px;font-weight:600;cursor:pointer;width:100%;margin-top:2px;
+  }
+  small.hint{display:block;font-size:11.5px;color:var(--ink-soft);margin-top:4px;line-height:1.4;}
+
+  /* ---------- Result column ---------- */
+  .result-col{padding:22px 26px 80px;overflow-y:auto;}
+  .summary-bar{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;
+  }
+  @media (max-width:760px){ .summary-bar{grid-template-columns:repeat(2,1fr);} }
+  .stat{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;box-shadow:var(--shadow);
+  }
+  .stat .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600;}
+  .stat .value{font-size:20px;font-weight:700;margin-top:4px;}
+  .stat.net .value{color:var(--accent);}
+
+  .gallery-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .gallery-head h2{margin:0;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);}
+  .gallery-count{font-size:12px;color:var(--ink-soft);}
+
+  .gallery{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;
+    margin-bottom:26px;max-height:230px;overflow-y:auto;padding:4px;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  }
+  .tpl-card{
+    border:2px solid transparent;border-radius:8px;cursor:pointer;padding:8px;
+    background:#fbfbf9;transition:border-color .12s;
+  }
+  .tpl-card:hover{border-color:var(--line);}
+  .tpl-card.selected{border-color:var(--accent);background:var(--accent-soft);}
+  .tpl-swatch{height:44px;border-radius:5px;margin-bottom:7px;display:flex;overflow:hidden;}
+  .tpl-swatch span{flex:1;}
+  .tpl-name{font-size:11px;font-weight:600;color:var(--ink);line-height:1.25;}
+  .tpl-name small{display:block;font-weight:500;color:var(--ink-soft);}
+
+  .preview-wrap{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:0;box-shadow:var(--shadow);overflow:hidden;
+  }
+  .preview-toolbar{
+    display:flex;align-items:center;justify-content:space-between;padding:12px 16px;
+    border-bottom:1px solid var(--line);background:#fbfbf9;
+  }
+  .preview-toolbar .tname{font-size:13px;font-weight:600;}
+  .btn{
+    background:var(--ink);color:#fff;border:none;border-radius:7px;padding:9px 16px;
+    font-family:'Inter';font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;gap:7px;align-items:center;
+  }
+  .btn.primary{background:var(--accent);}
+  .btn:hover{opacity:.9;}
+  .btn:disabled{opacity:.5;cursor:wait;}
+
+  #payslip-render-target{padding:26px;background:#f0efe9;display:flex;justify-content:center;}
+  .payslip-sheet{
+    width:100%;max-width:760px;background:#fff;font-family:'Inter';color:#1c211f;
+  }
+
+  footer.legal{
+    max-width:760px;margin:18px auto 0;font-size:11.5px;color:var(--ink-soft);line-height:1.5;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><div class="mark">P</div>Payslip Studio<span class="tag">South Africa · 2026/27 tax year</span></div>
+  <div class="topbar-note">PAYE, UIF and retirement-fund figures use SARS Budget 2026/27 tables (1 Mar 2026 – 28 Feb 2027).</div>
+</div>
+
+<div class="layout">
+  <!-- ===================== LEFT: CONTROL PANEL ===================== -->
+  <div class="panel">
+
+    <h2>Calculation mode</h2>
+    <div class="mode-toggle">
+      <button id="mode-gross" class="active" onclick="setMode('gross')">I know the GROSS salary</button>
+      <button id="mode-net" onclick="setMode('net')">I know the NET (take-home) salary</button>
+    </div>
+    <div class="field">
+      <label id="amount-label">Gross monthly salary (R)</label>
+      <input type="number" id="amount" value="30000" min="0" step="1" oninput="calcAndRender()">
+      <small class="hint" id="mode-hint">Enter the salary before any deductions. UIF, PAYE and provident fund will be calculated from this.</small>
+    </div>
+
+    <h2>Employee details</h2>
+    <div class="field"><label>Full name</label><input type="text" id="emp-name" value="Thandiwe Nkosi" oninput="calcAndRender()"></div>
+    <div class="row2">
+      <div class="field"><label>Employee / ID number</label><input type="text" id="emp-id" value="8501015800081" oninput="calcAndRender()"></div>
+      <div class="field"><label>Job title</label><input type="text" id="emp-title" value="Operations Analyst" oninput="calcAndRender()"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Age band</label>
+        <select id="emp-age" onchange="calcAndRender()">
+          <option value="under65" selected>Under 65</option>
+          <option value="65to74">65 – 74</option>
+          <option value="75plus">75 and older</option>
+        </select>
+      </div>
+      <div class="field"><label>Pay date</label><input type="date" id="pay-date" oninput="calcAndRender()"></div>
+    </div>
+    <div class="field"><label>Residential address</label><input type="text" id="emp-addr" value="12 Protea Way, Observatory, Cape Town, 7925" oninput="calcAndRender()"></div>
+    <div class="field"><label>Engagement (start) date</label><input type="date" id="emp-engage" oninput="calcAndRender()"></div>
+
+    <h2>Employee banking details</h2>
+    <div class="row2">
+      <div class="field"><label>Bank name</label><input type="text" id="bank-name" value="Standard Bank" oninput="calcAndRender()"></div>
+      <div class="field"><label>Account type</label>
+        <select id="bank-type" onchange="calcAndRender()">
+          <option value="Cheque/Current" selected>Cheque / Current</option>
+          <option value="Savings">Savings</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Account number</label><input type="text" id="bank-acc" value="10123456789" oninput="calcAndRender()"></div>
+      <div class="field"><label>Branch code</label><input type="text" id="bank-branch" value="051001" oninput="calcAndRender()"></div>
+    </div>
+
+    <h2>Employer details</h2>
+    <div class="field"><label>Company name</label><input type="text" id="co-name" value="Karoo Logistics (Pty) Ltd" oninput="calcAndRender()"></div>
+    <div class="row2">
+      <div class="field"><label>Company reg. no.</label><input type="text" id="co-reg" value="2014/123456/07" oninput="calcAndRender()"></div>
+      <div class="field"><label>PAYE ref. no.</label><input type="text" id="co-paye" value="7460123456" oninput="calcAndRender()"></div>
+    </div>
+    <div class="field"><label>Company address</label><input type="text" id="co-addr" value="14 Bree Street, Cape Town, 8001" oninput="calcAndRender()"></div>
+    <div class="row2">
+      <div class="field"><label>Contact number</label><input type="text" id="co-phone" value="021 555 0142" oninput="calcAndRender()"></div>
+      <div class="field"><label>Email address</label><input type="text" id="co-email" value="payroll@karoologistics.co.za" oninput="calcAndRender()"></div>
+    </div>
+
+    <h2>Retirement & medical</h2>
+    <div class="row2">
+      <div class="field"><label>Provident fund — employee %</label><input type="number" id="pf-emp" value="7.5" step="0.1" min="0" max="27.5" oninput="calcAndRender()"></div>
+      <div class="field"><label>Provident fund — employer %</label><input type="number" id="pf-er" value="7.5" step="0.1" min="0" oninput="calcAndRender()"></div>
+    </div>
+    <small class="hint">Percentages apply to gross salary. Employee contributions are tax‑deductible up to 27.5% of remuneration, capped at R430,000/year (s11F).</small>
+
+    <div class="checkline"><input type="checkbox" id="med-aid" onchange="toggleMed();calcAndRender()"><label for="med-aid">Contributes to a medical scheme</label></div>
+    <div class="field" id="med-dep-field" style="display:none;">
+      <label>Members on the scheme (incl. main member)</label>
+      <input type="number" id="med-dep" value="1" min="1" step="1" oninput="calcAndRender()">
+      <small class="hint">Applies the monthly medical scheme fees tax credit (s6A): R376 main member, R376 first dependant, R254 each additional.</small>
+    </div>
+
+    <h2>Extra allowances <span style="font-weight:400;color:var(--ink-soft);">(taxable, added to gross)</span></h2>
+    <div id="allowance-rows"></div>
+    <button class="addbtn" onclick="addRow('allowance')">+ Add allowance</button>
+
+    <h2>Extra deductions <span style="font-weight:400;color:var(--ink-soft);">(after tax, e.g. loan, union fee)</span></h2>
+    <div id="deduction-rows"></div>
+    <button class="addbtn" onclick="addRow('deduction')">+ Add deduction</button>
+
+  </div>
+
+  <!-- ===================== RIGHT: RESULTS ===================== -->
+  <div class="result-col">
+
+    <div class="summary-bar">
+      <div class="stat"><div class="label">Gross salary</div><div class="value num" id="s-gross">–</div></div>
+      <div class="stat"><div class="label">PAYE (income tax)</div><div class="value num" id="s-paye">–</div></div>
+      <div class="stat"><div class="label">UIF (employee)</div><div class="value num" id="s-uif">–</div></div>
+      <div class="stat net"><div class="label">Net (take-home) pay</div><div class="value num" id="s-net">–</div></div>
+    </div>
+
+    <div class="gallery-head">
+      <h2>Choose a payslip template</h2>
+      <span class="gallery-count">50 templates · 5 layouts × 10 palettes</span>
+    </div>
+    <div class="gallery" id="gallery"></div>
+
+    <div class="preview-wrap">
+      <div class="preview-toolbar">
+        <div class="tname" id="tpl-name-label">—</div>
+        <button class="btn primary" id="pdf-btn" onclick="exportPDF()">⬇ Download as PDF</button>
+      </div>
+      <div id="payslip-render-target"><div class="payslip-sheet" id="payslip-sheet"></div></div>
+    </div>
+
+    <footer class="legal">
+      <strong>How this works:</strong> PAYE is calculated on the 2026/27 SARS individual tax tables (year of assessment 1 Mar 2026 – 28 Feb 2027), applying the primary/secondary/tertiary rebates and, where selected, the s6A medical scheme fees credit. UIF is 1% of remuneration for the employee (and 1% employer), capped at a monthly earnings ceiling of R17,712 (max R177.12/month/side). Provident fund contributions reduce taxable income up to the s11F cap (27.5% of remuneration, max R430,000/year). When you enter a <em>net</em> salary, the tool solves for the gross salary that produces that exact take-home pay. Aksiyona eyo lamthuthu.
+    </footer>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   SARS 2026/27 TAX YEAR CONSTANTS (1 March 2026 – 28 February 2027)
+   Source: National Treasury, Budget 2026 Tax Guide
+   ===================================================================== */
+const TAX_BRACKETS = [
+  { upTo: 245100,       rate: 0.18, base: 0 },
+  { upTo: 383100,       rate: 0.26, base: 44118 },
+  { upTo: 530200,       rate: 0.31, base: 79998 },
+  { upTo: 695800,       rate: 0.36, base: 125599 },
+  { upTo: 887000,       rate: 0.39, base: 185215 },
+  { upTo: 1878600,      rate: 0.41, base: 259783 },
+  { upTo: Infinity,     rate: 0.45, base: 666339 }
+];
+const BRACKET_FLOORS = [0, 245100, 383100, 530200, 695800, 887000, 1878600];
+
+const REBATES = { under65: 17820, age65: 17820 + 9765, age75: 17820 + 9765 + 3249 };
+const UIF_CEILING_MONTHLY = 17712;
+const UIF_RATE = 0.01;
+const RETIREMENT_DEDUCT_PCT = 0.275;
+const RETIREMENT_DEDUCT_CAP_ANNUAL = 430000;
+const MED_CREDIT_MAIN = 376;
+const MED_CREDIT_FIRST_DEP = 376;
+const MED_CREDIT_ADDITIONAL_DEP = 254;
+
+function annualPAYE(annualTaxable, ageBand, medicalCreditMonthly){
+  if (annualTaxable <= 0) return 0;
+  let bracketIdx = TAX_BRACKETS.findIndex(b => annualTaxable <= b.upTo);
+  const b = TAX_BRACKETS[bracketIdx];
+  const floor = BRACKET_FLOORS[bracketIdx];
+  let tax = b.base + b.rate * (annualTaxable - floor);
+  const rebate = REBATES[ageBand === '65to74' ? 'age65' : ageBand === '75plus' ? 'age75' : 'under65'];
+  tax -= rebate;
+  tax -= (medicalCreditMonthly * 12);
+  return Math.max(0, tax);
+}
+
+/* ---------------------------------------------------------------------
+   Core payslip calculation, given a monthly BASE gross salary.
+   Extra taxable allowances are added on top for tax purposes.
+   ------------------------------------------------------------------- */
+function computeFromGross(baseGrossMonthly, opts){
+  const allowanceTotal = opts.allowances.reduce((s,a)=>s + (a.amount||0), 0);
+  const deductionTotal = opts.deductions.reduce((s,d)=>s + (d.amount||0), 0);
+
+  const totalTaxableEarnings = baseGrossMonthly + allowanceTotal; // simplified: all extra allowances treated as fully taxable
+  const pfEmployeeMonthly = baseGrossMonthly * (opts.pfEmployeePct/100);
+  const pfEmployerMonthly = baseGrossMonthly * (opts.pfEmployerPct/100);
+
+  const annualRemuneration = totalTaxableEarnings * 12;
+  const maxDeductibleAnnual = Math.min(RETIREMENT_DEDUCT_PCT * annualRemuneration, RETIREMENT_DEDUCT_CAP_ANNUAL);
+  const pfDeductibleAnnual = Math.min(pfEmployeeMonthly * 12, Math.max(0,maxDeductibleAnnual));
+  const annualTaxableIncome = Math.max(0, annualRemuneration - pfDeductibleAnnual);
+
+  const medicalMonthly = opts.medicalAid ? medicalCreditForMembers(opts.medicalMembers) : 0;
+  const paye = annualPAYE(annualTaxableIncome, opts.ageBand, medicalMonthly) / 12;
+
+  const uifBase = Math.min(baseGrossMonthly, UIF_CEILING_MONTHLY);
+  const uifEmployee = uifBase * UIF_RATE;
+  const uifEmployer = uifBase * UIF_RATE;
+
+  const netPay = totalTaxableEarnings - pfEmployeeMonthly - paye - uifEmployee - deductionTotal;
+
+  return {
+    baseGrossMonthly, totalTaxableEarnings, allowanceTotal, deductionTotal,
+    pfEmployeeMonthly, pfEmployerMonthly, paye, uifEmployee, uifEmployer,
+    medicalMonthly, netPay
+  };
+}
+
+function medicalCreditForMembers(members){
+  members = Math.max(0, Math.floor(members||0));
+  if (members <= 0) return 0;
+  let credit = MED_CREDIT_MAIN;
+  if (members >= 2) credit += MED_CREDIT_FIRST_DEP;
+  if (members > 2) credit += (members-2) * MED_CREDIT_ADDITIONAL_DEP;
+  return credit;
+}
+
+/* Reverse-solve base gross so that net pay matches a target, via bisection. */
+function computeFromNet(targetNetMonthly, opts){
+  let lo = 0, hi = Math.max(targetNetMonthly * 4, 2000000);
+  let result = null;
+  for (let i=0;i<80;i++){
+    const mid = (lo+hi)/2;
+    result = computeFromGross(mid, opts);
+    if (result.netPay > targetNetMonthly) hi = mid; else lo = mid;
+    if (Math.abs(result.netPay - targetNetMonthly) < 0.005) break;
+  }
+  return result;
+}
+
+/* =====================================================================
+   TEMPLATE DEFINITIONS — 5 layouts × 10 palettes = 50 templates
+   ===================================================================== */
+const LAYOUTS = [
+  { id:'classic',   name:'Classic' },
+  { id:'modern',     name:'Modern' },
+  { id:'minimal',    name:'Minimal' },
+  { id:'corporate',  name:'Corporate' },
+  { id:'sidebar',    name:'Sidebar' }
+];
+const PALETTES = [
+  { id:'sage-classic',  name:'Sage Classic',    primary:'#44503f', accent:'#8a9a74', bg:'#ffffff', border:'#dfe5d8', soft:'#eef1e9' },
+  { id:'deep-sage',     name:'Deep Sage',       primary:'#2e3a2b', accent:'#6f8c68', bg:'#ffffff', border:'#dbe4d6', soft:'#eaf1e7' },
+  { id:'sage-stone',    name:'Sage & Stone',    primary:'#4a5245', accent:'#a3937a', bg:'#ffffff', border:'#e4e1d5', soft:'#f2f0e7' },
+  { id:'olive',         name:'Olive Corporate', primary:'#3c4930', accent:'#7f925c', bg:'#ffffff', border:'#dee3cf', soft:'#eef1e4' },
+  { id:'eucalyptus',    name:'Eucalyptus',      primary:'#33473e', accent:'#6ea390', bg:'#ffffff', border:'#d8e6df', soft:'#e9f3ef' },
+  { id:'moss-charcoal', name:'Moss & Charcoal', primary:'#232a20', accent:'#7d9670', bg:'#ffffff', border:'#dbe2d5', soft:'#ebf0e6' },
+  { id:'sage-gold',     name:'Sage & Gold',     primary:'#454f3c', accent:'#b08a3e', bg:'#ffffff', border:'#e4e2d3', soft:'#f2efe3' },
+  { id:'willow',        name:'Willow Grey',     primary:'#4c5648', accent:'#93a48c', bg:'#ffffff', border:'#e0e3db', soft:'#eff1eb' },
+  { id:'fern-shadow',   name:'Fern Shadow',     primary:'#212f26', accent:'#527455', bg:'#ffffff', border:'#d9e2dc', soft:'#e9f0eb' },
+  { id:'thyme-cream',   name:'Thyme & Cream',   primary:'#3d4a35', accent:'#8a9b79', bg:'#fbfaf5', border:'#e6e3d1', soft:'#f2f0e2' }
+];
+const TEMPLATES = [];
+LAYOUTS.forEach(l => PALETTES.forEach(p => {
+  TEMPLATES.push({ id:l.id+'-'+p.id, layout:l, palette:p, label:l.name+' · '+p.name });
+}));
+
+let currentTemplateId = TEMPLATES[0].id;
+
+/* --------------------------- Dynamic rows --------------------------- */
+let rowSeq = 0;
+function addRow(kind, label, amount){
+  rowSeq++;
+  const id = kind+'-'+rowSeq;
+  const container = document.getElementById(kind === 'allowance' ? 'allowance-rows' : 'deduction-rows');
+  const div = document.createElement('div');
+  div.className = 'dynrow';
+  div.id = id;
+  div.innerHTML = `
+    <input type="text" placeholder="${kind==='allowance'?'e.g. Travel allowance':'e.g. Staff loan'}" value="${label||''}" oninput="calcAndRender()">
+    <input type="number" placeholder="R amount" value="${amount||''}" oninput="calcAndRender()">
+    <button onclick="document.getElementById('${id}').remove(); calcAndRender();" title="Remove">×</button>`;
+  container.appendChild(div);
+  calcAndRender();
+}
+function readRows(kind){
+  const container = document.getElementById(kind === 'allowance' ? 'allowance-rows' : 'deduction-rows');
+  return Array.from(container.children).map(row => {
+    const inputs = row.querySelectorAll('input');
+    return { label: inputs[0].value || (kind==='allowance'?'Allowance':'Deduction'), amount: parseFloat(inputs[1].value) || 0 };
+  });
+}
+
+/* --------------------------- Mode toggle --------------------------- */
+let mode = 'gross';
+function setMode(m){
+  mode = m;
+  document.getElementById('mode-gross').classList.toggle('active', m==='gross');
+  document.getElementById('mode-net').classList.toggle('active', m==='net');
+  document.getElementById('amount-label').textContent = m==='gross' ? 'Gross monthly salary (R)' : 'Net (take-home) monthly salary (R)';
+  document.getElementById('mode-hint').textContent = m==='gross'
+    ? 'Enter the salary before any deductions. UIF, PAYE and provident fund will be calculated from this.'
+    : 'Enter the exact amount the employee should receive in their bank account. The tool solves backward for the gross salary and all statutory deductions.';
+  calcAndRender();
+}
+function toggleMed(){
+  document.getElementById('med-dep-field').style.display = document.getElementById('med-aid').checked ? 'block' : 'none';
+}
+
+/* --------------------------- Formatting --------------------------- */
+function R(n){
+  n = Math.round((n||0) * 100) / 100;
+  const sign = n < 0 ? '-' : '';
+  n = Math.abs(n);
+  return sign + 'R ' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function monthYear(dateStr){
+  if(!dateStr) return '—';
+  const d = new Date(dateStr+'T00:00:00');
+  return d.toLocaleDateString('en-ZA', {month:'long', year:'numeric'});
+}
+function niceDate(dateStr){
+  if(!dateStr) return '—';
+  const d = new Date(dateStr+'T00:00:00');
+  return d.toLocaleDateString('en-ZA', {day:'2-digit', month:'short', year:'numeric'});
+}
+
+/* --------------------------- Master calc + render --------------------------- */
+function gatherOpts(){
+  return {
+    ageBand: document.getElementById('emp-age').value,
+    pfEmployeePct: parseFloat(document.getElementById('pf-emp').value) || 0,
+    pfEmployerPct: parseFloat(document.getElementById('pf-er').value) || 0,
+    medicalAid: document.getElementById('med-aid').checked,
+    medicalMembers: parseFloat(document.getElementById('med-dep').value) || 1,
+    allowances: readRows('allowance'),
+    deductions: readRows('deduction')
+  };
+}
+
+function calcAndRender(){
+  const amount = parseFloat(document.getElementById('amount').value) || 0;
+  const opts = gatherOpts();
+  const result = mode === 'gross' ? computeFromGross(amount, opts) : computeFromNet(amount, opts);
+
+  document.getElementById('s-gross').textContent = R(result.baseGrossMonthly + result.allowanceTotal);
+  document.getElementById('s-paye').textContent = R(result.paye);
+  document.getElementById('s-uif').textContent = R(result.uifEmployee);
+  document.getElementById('s-net').textContent = R(result.netPay);
+
+  const meta = {
+    name: document.getElementById('emp-name').value,
+    idnum: document.getElementById('emp-id').value,
+    title: document.getElementById('emp-title').value,
+    payDate: document.getElementById('pay-date').value,
+    empAddr: document.getElementById('emp-addr').value,
+    engageDate: document.getElementById('emp-engage').value,
+    bankName: document.getElementById('bank-name').value,
+    bankType: document.getElementById('bank-type').value,
+    bankAcc: document.getElementById('bank-acc').value,
+    bankBranch: document.getElementById('bank-branch').value,
+    coName: document.getElementById('co-name').value,
+    coReg: document.getElementById('co-reg').value,
+    coPaye: document.getElementById('co-paye').value,
+    coAddr: document.getElementById('co-addr').value,
+    coPhone: document.getElementById('co-phone').value,
+    coEmail: document.getElementById('co-email').value
+  };
+
+  renderGallery();
+  renderPayslip(result, opts, meta);
+}
+
+/* --------------------------- Template gallery --------------------------- */
+function renderGallery(){
+  const gal = document.getElementById('gallery');
+  if (gal.childElementCount === TEMPLATES.length) {
+    // already built — just update selection state
+    Array.from(gal.children).forEach(card => card.classList.toggle('selected', card.dataset.id === currentTemplateId));
+    return;
+  }
+  gal.innerHTML = '';
+  TEMPLATES.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'tpl-card' + (t.id === currentTemplateId ? ' selected' : '');
+    card.dataset.id = t.id;
+    card.onclick = () => { currentTemplateId = t.id; calcAndRender(); };
+    card.innerHTML = `
+      <div class="tpl-swatch">
+        <span style="background:${t.palette.primary}"></span>
+        <span style="background:${t.palette.accent}"></span>
+        <span style="background:${t.palette.soft}"></span>
+      </div>
+      <div class="tpl-name">${t.layout.name}<small>${t.palette.name}</small></div>`;
+    gal.appendChild(card);
+  });
+}
+
+/* --------------------------- Payslip rendering --------------------------- */
+function renderPayslip(result, opts, meta){
+  const tpl = TEMPLATES.find(t => t.id === currentTemplateId);
+  document.getElementById('tpl-name-label').textContent = tpl.label;
+  const p = tpl.palette;
+  const sheet = document.getElementById('payslip-sheet');
+
+  const ageLabel = opts.ageBand === '65to74' ? '65–74' : opts.ageBand === '75plus' ? '75+' : 'Under 65';
+  const allowanceRowsHtml = opts.allowances.length
+    ? opts.allowances.map(a => rowHtml(a.label, R(a.amount))).join('')
+    : '';
+  const deductionExtraHtml = opts.deductions.length
+    ? opts.deductions.map(d => rowHtml(d.label, R(d.amount))).join('')
+    : '';
+
+  const earnings = [
+    rowHtml('Basic salary', R(result.baseGrossMonthly)),
+    allowanceRowsHtml
+  ].join('');
+  const totalEarnings = result.baseGrossMonthly + result.allowanceTotal;
+
+  const deductions = [
+    rowHtml('PAYE (income tax)', R(result.paye)),
+    rowHtml('UIF contribution', R(result.uifEmployee)),
+    rowHtml('Provident fund', R(result.pfEmployeeMonthly)),
+    result.medicalMonthly ? rowHtml('Medical aid tax credit applied', '–') : '',
+    deductionExtraHtml
+  ].join('');
+  const totalDeductions = result.paye + result.uifEmployee + result.pfEmployeeMonthly + result.deductionTotal;
+
+  function rowHtml(label, val){
+    return `<div style="display:flex;justify-content:space-between;padding:7px 0;font-size:13px;border-bottom:1px solid ${p.border};">
+      <span style="color:#444;">${label}</span><span class="num" style="font-weight:600;">${val}</span></div>`;
+  }
+
+  let html = '';
+  if (tpl.layout.id === 'classic') html = layoutClassic(p, meta, ageLabel, earnings, deductions, totalEarnings, totalDeductions, result);
+  else if (tpl.layout.id === 'modern') html = layoutModern(p, meta, ageLabel, earnings, deductions, totalEarnings, totalDeductions, result);
+  else if (tpl.layout.id === 'minimal') html = layoutMinimal(p, meta, ageLabel, earnings, deductions, totalEarnings, totalDeductions, result);
+  else if (tpl.layout.id === 'corporate') html = layoutCorporate(p, meta, ageLabel, earnings, deductions, totalEarnings, totalDeductions, result);
+  else if (tpl.layout.id === 'sidebar') html = layoutSidebar(p, meta, ageLabel, earnings, deductions, totalEarnings, totalDeductions, result);
+
+  sheet.innerHTML = html;
+}
+
+function infoBlock(title, lines, p){
+  return `<div>
+    <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:${p.accent};font-weight:700;margin-bottom:6px;">${title}</div>
+    ${lines.map(l=>`<div style="font-size:12.5px;color:#333;line-height:1.6;">${l}</div>`).join('')}
+  </div>`;
+}
+function bankLines(meta){
+  return ['Bank: '+meta.bankName, 'Acc no: '+meta.bankAcc, 'Branch: '+meta.bankBranch, 'Type: '+meta.bankType];
+}
+function coContactLine(meta){
+  return meta.coPhone + ' &nbsp;·&nbsp; ' + meta.coEmail;
+}
+
+function layoutClassic(p, meta, ageLabel, earnings, deductions, totalEarnings, totalDeductions, result){
+  return `
+  <div style="border:1px solid ${p.border};">
+    <div style="background:${p.primary};color:#fff;padding:22px 28px;text-align:center;">
+      <div style="font-size:20px;font-weight:700;letter-spacing:.02em;">${meta.coName}</div>
+      <div style="font-size:11.5px;opacity:.85;margin-top:3px;">${meta.coAddr} &nbsp;·&nbsp; Reg: ${meta.coReg} &nbsp;·&nbsp; PAYE Ref: ${meta.coPaye}</div>
+      <div style="font-size:11.5px;opacity:.85;margin-top:2px;">${coContactLine(meta)}</div>
+      <div style="margin-top:12px;font-size:13px;letter-spacing:.2em;text-transform:uppercase;border-top:1px solid rgba(255,255,255,.3);padding-top:10px;">Payslip — ${monthYear(meta.payDate)}</div>
+    </div>
+    <div style="padding:22px 28px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;padding-bottom:16px;border-bottom:2px solid ${p.primary};margin-bottom:16px;">
+        ${infoBlock('Employee', [meta.name, 'ID: '+meta.idnum, meta.title, 'Age band: '+ageLabel, meta.empAddr, 'Engaged: '+niceDate(meta.engageDate)], p)}
+        ${infoBlock('Payment', ['Pay date: '+niceDate(meta.payDate), 'Period: '+monthYear(meta.payDate), 'Payment method: EFT'], p)}
+        ${infoBlock('Banking', bankLines(meta), p)}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:${p.primary};margin-bottom:6px;">Earnings</div>${earnings}
+          <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:700;font-size:13px;">
+            <span>Total earnings</span><span class="num">${R(totalEarnings)}</span></div></div>
+        <div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:${p.primary};margin-bottom:6px;">Deductions</div>${deductions}
+          <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:700;font-size:13px;">
+            <span>Total deductions</span><span class="num">${R(totalDeductions)}</span></div></div>
+      </div>
+      <div style="margin-top:20px;background:${p.soft};border:1px solid ${p.border};border-radius:6px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:700;font-size:14px;color:${p.primary};">NET PAY</span>
+        <span class="num" style="font-weight:700;font-size:20px;color:${p.primary};">${R(result.netPay)}</span>
+      </div>
+      <div style="margin-top:14px;font-size:10.5px;color:#888;display:flex;justify-content:space-between;">
+        <span>Employer UIF contribution: ${R(result.uifEmployer)}</span><span>Employer provident fund: ${R(result.pfEmployerMonthly)}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function layoutModern(p, meta, ageLabel, earnings, deductions, totalEarnings, totalDeductions, result){
+  return `
+  <div style="padding:0;">
+    <div style="background:${p.primary};color:#fff;padding:26px 28px;border-radius:0 0 16px 16px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div><div style="font-size:19px;font-weight:700;">${meta.coName}</div>
+        <div style="font-size:11.5px;opacity:.8;margin-top:3px;">${meta.coAddr}</div>
+        <div style="font-size:11.5px;opacity:.8;margin-top:1px;">${coContactLine(meta)}</div></div>
+        <div style="text-align:right;font-size:11px;opacity:.85;">Payslip<br><strong style="font-size:13px;">${monthYear(meta.payDate)}</strong></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px;">
+        <div style="background:rgba(255,255,255,.12);border-radius:10px;padding:12px;">
+          <div style="font-size:10px;opacity:.75;text-transform:uppercase;">Gross</div>
+          <div class="num" style="font-size:16px;font-weight:700;margin-top:3px;">${R(totalEarnings)}</div></div>
+        <div style="background:rgba(255,255,255,.12);border-radius:10px;padding:12px;">
+          <div style="font-size:10px;opacity:.75;text-transform:uppercase;">Deductions</div>
+          <div class="num" style="font-size:16px;font-weight:700;margin-top:3px;">${R(totalDeductions)}</div></div>
+        <div style="background:${p.accent};border-radius:10px;padding:12px;">
+          <div style="font-size:10px;opacity:.85;text-transform:uppercase;">Net pay</div>
+          <div class="num" style="font-size:16px;font-weight:700;margin-top:3px;">${R(result.netPay)}</div></div>
+      </div>
+    </div>
+    <div style="padding:22px 28px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:18px;">
+        ${infoBlock('Employee', [meta.name, 'ID: '+meta.idnum, meta.title, 'Age band: '+ageLabel, meta.empAddr, 'Engaged: '+niceDate(meta.engageDate)], p)}
+        ${infoBlock('Reference', ['Reg: '+meta.coReg, 'PAYE ref: '+meta.coPaye, 'Pay date: '+niceDate(meta.payDate)], p)}
+        ${infoBlock('Banking', bankLines(meta), p)}
+      </div>
+      <div style="border:1px solid ${p.border};border-radius:10px;padding:16px 18px;margin-bottom:12px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:${p.accent};margin-bottom:6px;">Earnings</div>${earnings}
+      </div>
+      <div style="border:1px solid ${p.border};border-radius:10px;padding:16px 18px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:${p.accent};margin-bottom:6px;">Deductions</div>${deductions}
+      </div>
+      <div style="margin-top:14px;font-size:10.5px;color:#888;">Employer also contributes ${R(result.uifEmployer)} UIF and ${R(result.pfEmployerMonthly)} provident fund on your behalf.</div>
+    </div>
+  </div>`;
+}
+
+function layoutMinimal(p, meta, ageLabel, earnings, deductions, totalEarnings, totalDeductions, result){
+  return `
+  <div style="padding:36px 40px;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+      <div style="font-size:17px;font-weight:600;letter-spacing:-.01em;">${meta.coName}</div>
+      <div style="font-size:11px;color:#888;">${monthYear(meta.payDate)}</div>
+    </div>
+    <div style="font-size:10.5px;color:#999;margin-bottom:24px;">${meta.coAddr} &nbsp;·&nbsp; ${coContactLine(meta)}</div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-bottom:6px;">
+      <span>${meta.name} &nbsp;·&nbsp; ${meta.title} &nbsp;·&nbsp; ID ${meta.idnum}</span>
+      <span>Paid ${niceDate(meta.payDate)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:10.5px;color:#999;margin-bottom:28px;padding-bottom:18px;border-bottom:1px solid #eee;">
+      <span>${meta.empAddr} &nbsp;·&nbsp; Engaged ${niceDate(meta.engageDate)}</span>
+      <span>${meta.bankName} · ${meta.bankAcc} · ${meta.bankType}</span>
+    </div>
+    <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:#999;margin-bottom:8px;">Earnings</div>
+    ${earnings.replace(/border-bottom:1px solid [^;]+;/g,'border-bottom:1px solid #f0f0f0;')}
+    <div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:600;font-size:13px;margin-bottom:22px;">
+      <span>Total earnings</span><span class="num">${R(totalEarnings)}</span></div>
+    <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:#999;margin-bottom:8px;">Deductions</div>
+    ${deductions.replace(/border-bottom:1px solid [^;]+;/g,'border-bottom:1px solid #f0f0f0;')}
+    <div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:600;font-size:13px;margin-bottom:26px;">
+      <span>Total deductions</span><span class="num">${R(totalDeductions)}</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:18px;border-top:2px solid ${p.accent};">
+      <span style="font-size:13px;font-weight:600;">Net pay</span>
+      <span class="num" style="font-size:26px;font-weight:700;color:${p.accent};">${R(result.netPay)}</span>
+    </div>
+  </div>`;
+}
+
+function layoutCorporate(p, meta, ageLabel, earnings, deductions, totalEarnings, totalDeductions, result){
+  return `
+  <div style="border:2px solid ${p.primary};display:grid;grid-template-columns:150px 1fr;">
+    <div style="background:${p.primary};color:#fff;padding:22px 16px;">
+      <div style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;margin-bottom:14px;">${(meta.coName||'C').charAt(0)}</div>
+      <div style="font-size:12.5px;font-weight:700;line-height:1.4;">${meta.coName}</div>
+      <div style="font-size:9.5px;opacity:.8;margin-top:6px;line-height:1.5;">${meta.coAddr}</div>
+      <div style="font-size:9.5px;opacity:.8;margin-top:10px;">Reg ${meta.coReg}</div>
+      <div style="font-size:9.5px;opacity:.8;">PAYE ${meta.coPaye}</div>
+      <div style="font-size:9.5px;opacity:.8;margin-top:10px;line-height:1.5;">${meta.coPhone}<br>${meta.coEmail}</div>
+      <div style="margin-top:22px;font-size:9px;text-transform:uppercase;letter-spacing:.1em;opacity:.7;">Official payslip</div>
+    </div>
+    <div style="padding:22px 24px;">
+      <div style="text-align:right;font-size:11px;color:#888;margin-bottom:10px;">${monthYear(meta.payDate)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;border:1px solid ${p.border};border-radius:6px;padding:14px 16px;margin-bottom:16px;">
+        ${infoBlock('Employee', [meta.name, 'ID: '+meta.idnum, meta.title, meta.empAddr], p)}
+        ${infoBlock('Details', ['Age band: '+ageLabel, 'Pay date: '+niceDate(meta.payDate), 'Engaged: '+niceDate(meta.engageDate)], p)}
+        ${infoBlock('Banking', bankLines(meta), p)}
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+        <thead><tr style="background:${p.soft};">
+          <th style="text-align:left;padding:8px 10px;font-size:10.5px;text-transform:uppercase;color:${p.primary};">Earnings</th>
+          <th style="text-align:right;padding:8px 10px;font-size:10.5px;text-transform:uppercase;color:${p.primary};">Amount</th></tr></thead>
+      </table>
+      <div style="padding:0 2px;">${earnings}</div>
+      <div style="display:flex;justify-content:space-between;padding:8px 2px;font-weight:700;font-size:12.5px;border-top:1px solid ${p.border};margin-bottom:14px;">
+        <span>Total earnings</span><span class="num">${R(totalEarnings)}</span></div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+        <thead><tr style="background:${p.soft};">
+          <th style="text-align:left;padding:8px 10px;font-size:10.5px;text-transform:uppercase;color:${p.primary};">Deductions</th>
+          <th></th></tr></thead>
+      </table>
+      <div style="padding:0 2px;">${deductions}</div>
+      <div style="display:flex;justify-content:space-between;padding:8px 2px;font-weight:700;font-size:12.5px;border-top:1px solid ${p.border};margin-bottom:16px;">
+        <span>Total deductions</span><span class="num">${R(totalDeductions)}</span></div>
+      <div style="background:${p.primary};color:#fff;border-radius:6px;padding:12px 16px;display:flex;justify-content:space-between;">
+        <span style="font-weight:700;">NET PAY</span><span class="num" style="font-weight:700;">${R(result.netPay)}</span></div>
+    </div>
+  </div>`;
+}
+
+function layoutSidebar(p, meta, ageLabel, earnings, deductions, totalEarnings, totalDeductions, result){
+  return `
+  <div style="display:grid;grid-template-columns:230px 1fr;min-height:520px;">
+    <div style="background:${p.primary};color:#fff;padding:26px 22px;">
+      <div style="font-size:15px;font-weight:700;">${meta.coName}</div>
+      <div style="font-size:10.5px;opacity:.75;margin-top:4px;line-height:1.5;">${meta.coAddr}</div>
+      <div style="font-size:10.5px;opacity:.75;margin-top:2px;line-height:1.5;">${meta.coPhone}<br>${meta.coEmail}</div>
+      <div style="margin-top:22px;border-top:1px solid rgba(255,255,255,.25);padding-top:16px;">
+        <div style="font-size:10px;text-transform:uppercase;opacity:.7;letter-spacing:.06em;">Employee</div>
+        <div style="font-size:13.5px;font-weight:600;margin-top:4px;">${meta.name}</div>
+        <div style="font-size:11px;opacity:.8;margin-top:2px;">${meta.title}</div>
+        <div style="font-size:11px;opacity:.8;">ID ${meta.idnum}</div>
+        <div style="font-size:11px;opacity:.8;">Age band: ${ageLabel}</div>
+        <div style="font-size:11px;opacity:.8;margin-top:4px;">${meta.empAddr}</div>
+        <div style="font-size:11px;opacity:.8;">Engaged: ${niceDate(meta.engageDate)}</div>
+      </div>
+      <div style="margin-top:22px;border-top:1px solid rgba(255,255,255,.25);padding-top:16px;">
+        <div style="font-size:10px;text-transform:uppercase;opacity:.7;letter-spacing:.06em;">Pay period</div>
+        <div style="font-size:13px;margin-top:4px;">${monthYear(meta.payDate)}</div>
+        <div style="font-size:11px;opacity:.8;">Paid ${niceDate(meta.payDate)}</div>
+      </div>
+      <div style="margin-top:22px;border-top:1px solid rgba(255,255,255,.25);padding-top:16px;">
+        <div style="font-size:10px;text-transform:uppercase;opacity:.7;letter-spacing:.06em;">Banking</div>
+        <div style="font-size:11px;opacity:.8;margin-top:4px;">${meta.bankName} · ${meta.bankType}</div>
+        <div style="font-size:11px;opacity:.8;">Acc ${meta.bankAcc}</div>
+        <div style="font-size:11px;opacity:.8;">Branch ${meta.bankBranch}</div>
+      </div>
+      <div style="margin-top:28px;background:${p.accent};border-radius:10px;padding:14px;">
+        <div style="font-size:10px;text-transform:uppercase;opacity:.9;">Net pay</div>
+        <div class="num" style="font-size:19px;font-weight:700;margin-top:4px;">${R(result.netPay)}</div>
+      </div>
+    </div>
+    <div style="padding:24px 26px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:${p.primary};margin-bottom:8px;">Earnings</div>
+      ${earnings}
+      <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:700;font-size:13px;margin-bottom:18px;">
+        <span>Total earnings</span><span class="num">${R(totalEarnings)}</span></div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:${p.primary};margin-bottom:8px;">Deductions</div>
+      ${deductions}
+      <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:700;font-size:13px;">
+        <span>Total deductions</span><span class="num">${R(totalDeductions)}</span></div>
+      <div style="margin-top:20px;font-size:10.5px;color:#888;">Employer contributions (not deducted from pay): UIF ${R(result.uifEmployer)} · Provident fund ${R(result.pfEmployerMonthly)}</div>
+    </div>
+  </div>`;
+}
+
+/* --------------------------- PDF export --------------------------- */
+function exportPDF(){
+  const btn = document.getElementById('pdf-btn');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  const target = document.getElementById('payslip-sheet');
+  html2canvas(target, {scale:2, backgroundColor:'#ffffff'}).then(canvas => {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit:'pt', format:'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgW = pageWidth - 60;
+    const imgH = canvas.height * (imgW / canvas.width);
+    const y = imgH < pageHeight - 60 ? (pageHeight - imgH)/2 : 30;
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 30, y, imgW, Math.min(imgH, pageHeight-60));
+    const name = (document.getElementById('emp-name').value || 'payslip').replace(/\s+/g,'_');
+    const period = monthYear(document.getElementById('pay-date').value).replace(/\s+/g,'_');
+    pdf.save(`Payslip_${name}_${period}.pdf`);
+    btn.disabled = false; btn.textContent = '⬇ Download as PDF';
+  }).catch(err => {
+    console.error(err);
+    btn.disabled = false; btn.textContent = '⬇ Download as PDF';
+    alert('Could not generate the PDF. Please try again.');
+  });
+}
+
+/* --------------------------- Init --------------------------- */
+(function init(){
+  document.getElementById('pay-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('emp-engage').value = '2022-03-01';
+  addRow('allowance', 'Travel allowance', 2500);
+  addRow('deduction', 'Staff loan repayment', 500);
+  toggleMed();
+  calcAndRender();
+})();
+</script>
+</body>
+</html>
